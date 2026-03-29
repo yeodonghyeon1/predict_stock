@@ -7,7 +7,7 @@ from PIL import Image
 from ultralytics import YOLO
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
-MODEL_PATH = Path(os.environ.get("YOLO_MODEL_PATH", str(_BACKEND_DIR / "weights" / "yolo" / "model.pt")))
+MODEL_PATH = Path(os.environ.get("YOLO_MODEL_PATH") or str(_BACKEND_DIR / "weights" / "yolo" / "model.pt"))
 
 CLASSES = [
     "Head and shoulders bottom",

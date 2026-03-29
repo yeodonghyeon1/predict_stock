@@ -5,7 +5,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
-MODEL_PATH = Path(os.environ.get("BERT_MODEL_PATH", str(_BACKEND_DIR / "weights" / "bert")))
+MODEL_PATH = Path(os.environ.get("BERT_MODEL_PATH") or str(_BACKEND_DIR / "weights" / "bert"))
 
 LABEL_MAP = {0: "negative", 1: "neutral", 2: "positive"}
 SIGNAL_MAP = {
