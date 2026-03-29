@@ -80,11 +80,12 @@ async def analyze_stock(
         context_parts.append(f"## Chart Analysis (AI Vision)\n{chart_vision_analysis}")
 
     if chart_patterns:
-        context_parts.append("## Chart Pattern Detection (YOLOv8)")
+        context_parts.append("## Object Detection Pattern Analysis")
         for p in chart_patterns:
             context_parts.append(
                 f"- {p['pattern']}: {p['signal']} (confidence {p['confidence']*100:.0f}%)"
             )
+        context_parts.append("Note: These patterns were detected by an object detection model on the chart image. Factor these into your analysis.")
 
     if news_data:
         context_parts.append(f"\n## Recent News ({len(news_data)} articles)")
@@ -120,7 +121,7 @@ User question: {question}
 Instructions:
 1. EVIDENCE FIRST: Cite specific news headlines as evidence. Include the article link in parentheses when referencing news.
 2. CLEAR DIRECTION: State a clear recommendation - buy, sell, or hold - with confidence level (strong/moderate/weak). Do not be vague.
-3. CHART + NEWS COMBINED: If both chart analysis and news are available, synthesize them. If they conflict, explain which signal is stronger and why.
+3. CHART + NEWS + OBJECT DETECTION COMBINED: Synthesize all available data - AI vision analysis, object detection patterns, and news. If signals conflict, explain which is stronger and why. Always mention object detection results if available.
 4. RISKS: Briefly mention 1-2 key risks.
 5. NEWS LINKS: At the end, list 2-3 most relevant article links under "참고 기사:" section.
 6. End with: "이 분석은 참고용이며 투자 조언이 아닙니다."

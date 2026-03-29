@@ -125,7 +125,7 @@ export default function Home() {
       {/* === Section 1: Chart Upload (Main) === */}
       <h2 style={{ fontSize: 15, fontWeight: "bold", marginBottom: 8 }}>차트 패턴 분석</h2>
       <p style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>
-        주식 차트 캡처를 올리면 AI가 패턴(삼중천정, 삼중바닥, M자, W자, 삼각수렴 등)을 감지합니다.
+        주식 라인 차트 캡처를 올리면 AI가 패턴(삼중천정, 삼중바닥, M자, W자, 삼각수렴 등)을 감지합니다. 객체인식은 라인 차트에서 가장 정확합니다.
       </p>
 
       <div
@@ -158,7 +158,7 @@ export default function Home() {
       {chartResult && (
         <>
           <div className="border-box" style={{ textAlign: "center" }}>
-            <span style={{ fontSize: 12, color: "#888" }}>객체인식 패턴 시그널 (YOLOv8)</span>
+            <span style={{ fontSize: 12, color: "#888" }}>객체인식 패턴 시그널</span>
             <div className={signalClass(chartResult.primary_signal)} style={{ fontSize: 22, margin: "4px 0" }}>
               {chartResult.primary_signal_ko}
             </div>
