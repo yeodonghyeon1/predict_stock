@@ -11,3 +11,5 @@ beautifulsoup4
 httpx
 googletrans==4.0.0-rc1
 cachetools
+protobuf
+sentencepiece
