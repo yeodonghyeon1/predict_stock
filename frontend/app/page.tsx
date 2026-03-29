@@ -87,7 +87,12 @@ const T = {
 };
 
 export default function Home() {
-  const [lang, setLang] = useState<"ko" | "en">("ko");
+  const [lang, setLang] = useState<"ko" | "en">(() => {
+    if (typeof navigator !== "undefined") {
+      return navigator.language.startsWith("ko") ? "ko" : "en";
+    }
+    return "ko";
+  });
   const [chartResult, setChartResult] = useState<ChartResult | null>(null);
   const [askResult, setAskResult] = useState<AskResult | null>(null);
   const [chartLoading, setChartLoading] = useState(false);
