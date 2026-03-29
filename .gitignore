@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+frontend/.next/
+
+# Environment
+.env
+.env.local
+.env.production
+backend/.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Model weights (too large for git)
+*.pt
+*.safetensors
+*.bin
+*.onnx
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build
+frontend/out/
+dist/
+
+# Logs
+*.log
