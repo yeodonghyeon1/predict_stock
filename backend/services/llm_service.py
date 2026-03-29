@@ -14,7 +14,8 @@ async def analyze_stock(
     query: str,
     question: str,
     chart_patterns: list[dict] | None = None,
-    news_sentiments: dict | None = None,
+    news_data: list[dict] | None = None,
+    news_summary: dict | None = None,
 ) -> str:
     if not CLAUDE_API_KEY:
         return ""
@@ -22,36 +23,50 @@ async def analyze_stock(
     context_parts = []
 
     if chart_patterns:
-        patterns_text = ", ".join(
-            f"{p['pattern']}({p['signal']}, {p['confidence']*100:.0f}%)"
-            for p in chart_patterns
-        )
-        context_parts.append(f"차트 패턴 분석 결과: {patterns_text}")
+        context_parts.append("## Chart Pattern Analysis")
+        for p in chart_patterns:
+            context_parts.append(
+                f"- {p['pattern']}: {p['signal']} (confidence {p['confidence']*100:.0f}%)"
+            )
 
-    if news_sentiments:
-        s = news_sentiments
+    if news_data:
+        context_parts.append(f"\n## Recent News ({len(news_data)} articles)")
+        for i, article in enumerate(news_data, 1):
+            sentiment = article.get("sentiment", {})
+            signal = sentiment.get("signal_ko", "?")
+            title = article.get("title_original", article.get("title_en", ""))
+            source = article.get("source", "")
+            context_parts.append(f"{i}. [{signal}] {title} ({source})")
+
+    if news_summary:
+        s = news_summary
         context_parts.append(
-            f"최근 뉴스 분석({s.get('total_articles', 0)}건): "
-            f"긍정 {s.get('positive_count', 0)}, "
-            f"중립 {s.get('neutral_count', 0)}, "
-            f"부정 {s.get('negative_count', 0)}, "
-            f"종합 시그널: {s.get('signal_ko', '알 수 없음')}"
+            f"\n## News Summary"
+            f"\nTotal: {s.get('total_articles', 0)} articles"
+            f"\nPositive: {s.get('positive_count', 0)}, "
+            f"Neutral: {s.get('neutral_count', 0)}, "
+            f"Negative: {s.get('negative_count', 0)}"
+            f"\nOverall signal: {s.get('signal_ko', 'N/A')}"
         )
 
-    context = "\n".join(context_parts) if context_parts else "추가 분석 데이터 없음"
+    context = "\n".join(context_parts) if context_parts else "No analysis data available."
 
-    prompt = f"""당신은 주식 분석 보조 AI입니다. 아래 데이터를 참고하여 사용자의 질문에 답하세요.
+    prompt = f"""You are a stock analysis AI. Analyze the data below and answer the user's question in Korean.
 
-종목: {query or '미지정'}
+Ticker: {query or 'Not specified'}
+
 {context}
 
-사용자 질문: {question}
+User question: {question}
 
-규칙:
-- 반드시 "이 분석은 참고용이며 투자 조언이 아닙니다"를 마지막에 포함
-- 간결하게 핵심만 답변 (200자 이내)
-- 확신하지 못하는 내용은 솔직히 모른다고 답변
-- 패턴/뉴스 데이터가 있으면 그 결과를 근거로 설명"""
+Instructions:
+1. EVIDENCE FIRST: Cite specific news headlines and chart patterns as evidence for your analysis. Reference article numbers (e.g., "article #3 reports...").
+2. CLEAR DIRECTION: State a clear recommendation - buy, sell, or hold - with confidence level (strong/moderate/weak). Do not be vague.
+3. CHART + NEWS COMBINED: If both chart patterns and news are available, synthesize them together. If they conflict, explain which signal is stronger and why.
+4. RISKS: Briefly mention 1-2 key risks.
+5. End with: "This analysis is for reference only and does not constitute investment advice."
+
+Write 300-500 characters in Korean. Be specific and direct."""
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -64,7 +79,7 @@ async def analyze_stock(
                 },
                 json={
                     "model": CLAUDE_MODEL,
-                    "max_tokens": 512,
+                    "max_tokens": 1024,
                     "messages": [{"role": "user", "content": prompt}],
                 },
             )

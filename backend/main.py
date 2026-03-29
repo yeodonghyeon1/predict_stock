@@ -78,18 +78,21 @@ async def ask_question(req: AskRequest):
 
     chart_patterns = req.chart_patterns
     news_summary = None
+    news_with_sentiment = []
 
     if query:
         articles = await fetch_news_for_stock(query, max_items=10)
         if articles:
-            sentiments = [bert_service.analyze_sentiment(a["title_en"]) for a in articles]
-            pos = sum(1 for s in sentiments if s["sentiment"] == "positive")
-            neg = sum(1 for s in sentiments if s["sentiment"] == "negative")
-            neu = len(sentiments) - pos - neg
-            avg = sum(s["scores"]["positive"] - s["scores"]["negative"] for s in sentiments) / len(sentiments)
+            for a in articles:
+                sentiment = bert_service.analyze_sentiment(a["title_en"])
+                news_with_sentiment.append({**a, "sentiment": sentiment})
+            pos = sum(1 for n in news_with_sentiment if n["sentiment"]["sentiment"] == "positive")
+            neg = sum(1 for n in news_with_sentiment if n["sentiment"]["sentiment"] == "negative")
+            neu = len(news_with_sentiment) - pos - neg
+            avg = sum(n["sentiment"]["scores"]["positive"] - n["sentiment"]["scores"]["negative"] for n in news_with_sentiment) / len(news_with_sentiment)
             signal_ko = "매수 고려" if avg > 0.15 else ("매도 고려" if avg < -0.15 else "관망")
             news_summary = {
-                "total_articles": len(sentiments),
+                "total_articles": len(news_with_sentiment),
                 "positive_count": pos,
                 "neutral_count": neu,
                 "negative_count": neg,
@@ -97,7 +100,9 @@ async def ask_question(req: AskRequest):
             }
 
     if llm_service.is_available():
-        answer = await llm_service.analyze_stock(query, question, chart_patterns, news_summary)
+        answer = await llm_service.analyze_stock(
+            query, question, chart_patterns, news_with_sentiment, news_summary
+        )
         return {"answer": answer, "source": "llm", "news_summary": news_summary}
 
     parts = []
