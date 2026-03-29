@@ -19,6 +19,7 @@ class AskRequest(BaseModel):
     query: str = ""
     question: str
     chart_patterns: list[ChartPattern] | None = None
+    chart_vision_analysis: str = ""
 
 
 class SentimentResult(BaseModel):

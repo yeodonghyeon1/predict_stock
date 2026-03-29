@@ -15,6 +15,7 @@ interface ChartResult {
   primary_signal: string;
   primary_signal_ko: string;
   pattern_count: number;
+  vision_analysis: string;
 }
 
 interface AskResult {
@@ -59,12 +60,17 @@ export default function Home() {
         query: ticker.trim(),
         question: question.trim() || `${ticker.trim()} 현재 상황 분석해줘`,
       };
-      if (chartResult && chartResult.detections.length > 0) {
-        body.chart_patterns = chartResult.detections.map((d) => ({
-          pattern: d.pattern,
-          confidence: d.confidence,
-          signal: d.signal,
-        }));
+      if (chartResult) {
+        if (chartResult.detections.length > 0) {
+          body.chart_patterns = chartResult.detections.map((d) => ({
+            pattern: d.pattern,
+            confidence: d.confidence,
+            signal: d.signal,
+          }));
+        }
+        if (chartResult.vision_analysis) {
+          body.chart_vision_analysis = chartResult.vision_analysis;
+        }
       }
       const res = await fetch("/api/ask", {
         method: "POST",
@@ -164,6 +170,13 @@ export default function Home() {
                 ))}
               </tbody>
             </table>
+          )}
+
+          {chartResult.vision_analysis && (
+            <div className="border-box" style={{ fontSize: 13, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>
+              <div style={{ fontSize: 12, color: "#888", marginBottom: 6 }}>AI 차트 분석</div>
+              {chartResult.vision_analysis}
+            </div>
           )}
         </>
       )}
