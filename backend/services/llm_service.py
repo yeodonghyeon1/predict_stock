@@ -3,7 +3,7 @@ import base64
 import httpx
 
 CLAUDE_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+CLAUDE_MODEL = "claude-haiku-4-5-20251001"
 CLAUDE_URL = "https://api.anthropic.com/v1/messages"
 
 

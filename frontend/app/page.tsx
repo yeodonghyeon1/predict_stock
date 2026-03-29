@@ -285,7 +285,7 @@ export default function Home() {
 
       {/* Footer */}
       <div style={{ textAlign: "center", fontSize: 11, color: "#aaa", marginTop: 12 }}>
-        <p>YOLOv8 · BERT | {new Date().getFullYear()}</p>
+        <p>Stock AI | {new Date().getFullYear()}</p>
       </div>
     </div>
   );
