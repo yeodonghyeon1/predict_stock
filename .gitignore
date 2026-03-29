@@ -16,8 +16,8 @@ __pycache__/
 venv/
 .venv/
 
-# Model weights (downloaded via download_models.py)
-backend/weights/
+# Model weights (large files inside submodules are handled by LFS)
+# backend/weights/ is tracked as submodules
 
 # OS
 .DS_Store

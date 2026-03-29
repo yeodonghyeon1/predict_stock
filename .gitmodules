@@ -1,0 +1,6 @@
+[submodule "backend/weights/yolo"]
+	path = backend/weights/yolo
+	url = https://huggingface.co/foduucom/stockmarket-pattern-detection-yolov8
+[submodule "backend/weights/bert"]
+	path = backend/weights/bert
+	url = https://huggingface.co/hasnain43/bert-stock-sentiment-v1
