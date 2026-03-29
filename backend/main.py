@@ -1,5 +1,10 @@
 import io
+from pathlib import Path
 from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
