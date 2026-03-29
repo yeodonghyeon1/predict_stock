@@ -369,6 +369,10 @@ export default function Home() {
           <a href="https://github.com/yeodonghyeon1/predict_stock" target="_blank" rel="noopener noreferrer" style={{ color: "#aaa" }}>
             GitHub
           </a>
+          {" | "}
+          <a href="mailto:suggest@predict-stock.com" style={{ color: "#aaa" }}>
+            suggest@predict-stock.com
+          </a>
         </p>
       </div>
     </div>
