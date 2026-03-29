@@ -1,11 +1,13 @@
 import io
+import os
 import base64
 from pathlib import Path
 
 from PIL import Image
 from ultralytics import YOLO
 
-MODEL_PATH = Path("D:/stockmarket-pattern-detection-yolov8/model.pt")
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+MODEL_PATH = Path(os.environ.get("YOLO_MODEL_PATH", str(_BACKEND_DIR / "weights" / "yolo" / "model.pt")))
 
 CLASSES = [
     "Head and shoulders bottom",

@@ -16,11 +16,8 @@ __pycache__/
 venv/
 .venv/
 
-# Model weights (too large for git)
-*.pt
-*.safetensors
-*.bin
-*.onnx
+# Model weights (downloaded via download_models.py)
+backend/weights/
 
 # OS
 .DS_Store

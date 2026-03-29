@@ -1,9 +1,11 @@
+import os
 from pathlib import Path
 
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-MODEL_PATH = Path("D:/bert-stock-sentiment-v1")
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+MODEL_PATH = Path(os.environ.get("BERT_MODEL_PATH", str(_BACKEND_DIR / "weights" / "bert")))
 
 LABEL_MAP = {0: "negative", 1: "neutral", 2: "positive"}
 SIGNAL_MAP = {
