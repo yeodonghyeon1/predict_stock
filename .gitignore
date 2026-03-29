@@ -36,3 +36,6 @@ dist/
 
 # Logs
 *.log
+
+# Local run script (includes tunnel config)
+run.bat
