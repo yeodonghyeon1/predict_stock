@@ -364,7 +364,12 @@ export default function Home() {
 
       {/* Footer */}
       <div style={{ textAlign: "center", fontSize: 11, color: "#aaa", marginTop: 12 }}>
-        <p>Stock AI | {new Date().getFullYear()}</p>
+        <p>
+          Stock AI | {new Date().getFullYear()} |{" "}
+          <a href="https://github.com/yeodonghyeon1/predict_stock" target="_blank" rel="noopener noreferrer" style={{ color: "#aaa" }}>
+            GitHub
+          </a>
+        </p>
       </div>
     </div>
   );
