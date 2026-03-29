@@ -17,45 +17,16 @@ interface ChartResult {
   pattern_count: number;
 }
 
-interface ToneData {
-  sentiment: string;
-  signal_ko: string;
-}
-
-interface NewsItem {
-  title_original: string;
-  link: string;
-  source: string;
-  sentiment: ToneData;
-}
-
-interface NewsResult {
-  query: string;
-  news: NewsItem[];
-  summary: {
-    signal: string;
-    signal_ko: string;
-    total_articles: number;
-    positive_count: number;
-    neutral_count: number;
-    negative_count: number;
-  };
-}
-
-interface SentimentResult {
-  sentiment: string;
-  confidence: number;
-  scores: { negative: number; neutral: number; positive: number };
-  signal: string;
-  signal_ko: string;
+interface AskResult {
+  answer: string;
+  source: "llm" | "basic";
 }
 
 export default function Home() {
   const [chartResult, setChartResult] = useState<ChartResult | null>(null);
-  const [newsResult, setNewsResult] = useState<NewsResult | null>(null);
-  const [sentimentResult, setSentimentResult] = useState<SentimentResult | null>(null);
+  const [askResult, setAskResult] = useState<AskResult | null>(null);
   const [chartLoading, setChartLoading] = useState(false);
-  const [newsLoading, setNewsLoading] = useState(false);
+  const [askLoading, setAskLoading] = useState(false);
   const [fileName, setFileName] = useState("");
   const [ticker, setTicker] = useState("");
   const [question, setQuestion] = useState("");
@@ -78,53 +49,39 @@ export default function Home() {
     }
   }, []);
 
-  const handleAnalyze = async (e: React.FormEvent) => {
+  const handleAsk = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ticker.trim() && !question.trim()) return;
-    setNewsLoading(true);
-    setNewsResult(null);
-    setSentimentResult(null);
-
+    setAskLoading(true);
+    setAskResult(null);
     try {
-      const promises: Promise<void>[] = [];
-
-      if (ticker.trim()) {
-        promises.push(
-          fetch("/api/analyze-stock", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query: ticker.trim() }),
-          })
-            .then((r) => r.json())
-            .then((data) => setNewsResult(data))
-        );
+      const body: Record<string, unknown> = {
+        query: ticker.trim(),
+        question: question.trim() || `${ticker.trim()} 현재 상황 분석해줘`,
+      };
+      if (chartResult && chartResult.detections.length > 0) {
+        body.chart_patterns = chartResult.detections.map((d) => ({
+          pattern: d.pattern,
+          confidence: d.confidence,
+          signal: d.signal,
+        }));
       }
-
-      if (question.trim()) {
-        promises.push(
-          fetch("/api/analyze-sentiment", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: question.trim() }),
-          })
-            .then((r) => r.json())
-            .then((data) => setSentimentResult(data))
-        );
-      }
-
-      await Promise.all(promises);
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("fail");
+      setAskResult(await res.json());
     } catch {
-      // ignore
+      setAskResult(null);
     } finally {
-      setNewsLoading(false);
+      setAskLoading(false);
     }
   };
 
   const signalClass = (s: string) =>
     s === "Buy" ? "signal-buy" : s === "Sell" ? "signal-sell" : "signal-hold";
-
-  const toneColor = (s: string) =>
-    s === "positive" ? "#d32f2f" : s === "negative" ? "#1565c0" : "#666";
 
   return (
     <div className="container" style={{ paddingTop: 20, paddingBottom: 40 }}>
@@ -213,14 +170,16 @@ export default function Home() {
 
       <hr style={{ border: "none", borderTop: "1px solid #ddd", margin: "20px 0" }} />
 
-      {/* === Section 2: Ticker + Question === */}
-      <h2 style={{ fontSize: 15, fontWeight: "bold", marginBottom: 8 }}>추가 분석</h2>
+      {/* === Section 2: Ask === */}
+      <h2 style={{ fontSize: 15, fontWeight: "bold", marginBottom: 8 }}>종목 질문</h2>
       <p style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>
-        종목명을 입력하면 최신 뉴스의 분위기를 분석하고, 텍스트를 입력하면 긍정/부정 여부를 판단합니다.
-        둘 다 입력하면 동시에 분석합니다.
+        종목명과 궁금한 점을 입력하세요. 최신 뉴스와 차트 분석 결과를 종합하여 답변합니다.
+        {chartResult && chartResult.detections.length > 0 && (
+          <span style={{ color: "#333" }}> (위 차트 분석 결과가 자동으로 반영됩니다)</span>
+        )}
       </p>
 
-      <form onSubmit={handleAnalyze}>
+      <form onSubmit={handleAsk}>
         <table style={{ marginBottom: 8 }}>
           <tbody>
             <tr>
@@ -235,13 +194,13 @@ export default function Home() {
               </td>
             </tr>
             <tr>
-              <th>질문/텍스트</th>
+              <th>질문</th>
               <td>
                 <input
                   type="text"
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="예: 테슬라 실적 발표 후 주가 하락"
+                  placeholder="예: 지금 매수해도 될까? / 최근 이슈가 뭐야?"
                 />
               </td>
             </tr>
@@ -249,69 +208,25 @@ export default function Home() {
         </table>
         <button
           type="submit"
-          disabled={newsLoading || (!ticker.trim() && !question.trim())}
+          disabled={askLoading || (!ticker.trim() && !question.trim())}
           className="btn"
           style={{ width: "100%" }}
         >
-          {newsLoading ? "분석 중..." : "분석"}
+          {askLoading ? "분석 중..." : "질문"}
         </button>
       </form>
 
-      {/* News result */}
-      {newsResult && (
-        <div style={{ marginTop: 12 }}>
-          <div className="border-box" style={{ textAlign: "center" }}>
-            <span style={{ fontSize: 12, color: "#888" }}>
-              [{newsResult.query}] 뉴스 여론 ({newsResult.summary.total_articles}건)
-            </span>
-            <div className={signalClass(newsResult.summary.signal)} style={{ fontSize: 22, margin: "4px 0" }}>
-              {newsResult.summary.signal_ko}
-            </div>
-            <span style={{ fontSize: 12 }}>
-              <span style={{ color: "#d32f2f" }}>긍정 {newsResult.summary.positive_count}</span>
-              {" · "}
-              <span style={{ color: "#666" }}>중립 {newsResult.summary.neutral_count}</span>
-              {" · "}
-              <span style={{ color: "#1565c0" }}>부정 {newsResult.summary.negative_count}</span>
-            </span>
+      {/* Answer */}
+      {askResult && (
+        <div className="border-box" style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 12, color: "#888", marginBottom: 6 }}>
+            분석 결과
+            {askResult.source === "basic" && (
+              <span style={{ color: "#c62828", marginLeft: 8 }}>[기본 모드 - API 키 미설정]</span>
+            )}
           </div>
-
-          {newsResult.news.length > 0 && (
-            <table>
-              <thead>
-                <tr><th>뉴스</th><th>출처</th><th>판단</th></tr>
-              </thead>
-              <tbody>
-                {newsResult.news.map((item, i) => (
-                  <tr key={i}>
-                    <td>
-                      <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ color: "#333" }}>
-                        {item.title_original}
-                      </a>
-                    </td>
-                    <td style={{ fontSize: 12, color: "#888" }}>{item.source}</td>
-                    <td style={{ color: toneColor(item.sentiment.sentiment), fontWeight: "bold", fontSize: 12 }}>
-                      {item.sentiment.signal_ko}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
-
-      {/* Sentiment result */}
-      {sentimentResult && (
-        <div style={{ marginTop: 12 }}>
-          <div className="border-box" style={{ textAlign: "center" }}>
-            <span style={{ fontSize: 12, color: "#888" }}>텍스트 분석</span>
-            <div className={signalClass(sentimentResult.signal)} style={{ fontSize: 22, margin: "4px 0" }}>
-              {sentimentResult.signal_ko}
-            </div>
-            <span style={{ fontSize: 12, color: "#888" }}>
-              신뢰도 {(sentimentResult.confidence * 100).toFixed(1)}%
-            </span>
+          <div style={{ fontSize: 13, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>
+            {askResult.answer}
           </div>
         </div>
       )}

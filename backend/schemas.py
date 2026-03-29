@@ -9,6 +9,18 @@ class StockRequest(BaseModel):
     query: str
 
 
+class ChartPattern(BaseModel):
+    pattern: str
+    confidence: float
+    signal: str
+
+
+class AskRequest(BaseModel):
+    query: str = ""
+    question: str
+    chart_patterns: list[ChartPattern] | None = None
+
+
 class SentimentResult(BaseModel):
     sentiment: str
     confidence: float
