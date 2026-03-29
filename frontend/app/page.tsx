@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface Detection {
   pattern: string;
@@ -34,7 +34,7 @@ export default function Home() {
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) return;
-    setFileName(file.name);
+    setFileName(file.name || "clipboard-image");
     setChartLoading(true);
     setChartResult(null);
     try {
@@ -49,6 +49,22 @@ export default function Home() {
       setChartLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) handleFile(file);
+          break;
+        }
+      }
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [handleFile]);
 
   const handleAsk = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,7 +149,7 @@ export default function Home() {
         }}
       >
         <p style={{ color: "#888", fontSize: 13 }}>
-          {fileName || "클릭 또는 드래그하여 차트 이미지 업로드"}
+          {fileName || "클릭, 드래그, 또는 Ctrl+V로 차트 이미지 붙여넣기"}
         </p>
       </div>
 
