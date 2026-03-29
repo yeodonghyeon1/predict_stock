@@ -41,7 +41,7 @@ def analyze_chart(image_bytes: bytes) -> dict:
     model = get_model()
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
-    results = model(image, conf=0.25)
+    results = model(image, conf=0.15)
     result = results[0]
 
     detections = []
