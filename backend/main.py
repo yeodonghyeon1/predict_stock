@@ -7,12 +7,13 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from models import yolo_service, bert_service
 from services.news_scraper import fetch_news_for_stock
 from services import llm_service
+from services.rate_limiter import check_and_increment, get_remaining
 from schemas import SentimentRequest, StockRequest, AskRequest
 
 
@@ -46,7 +47,7 @@ def health():
 
 
 @app.post("/api/analyze-chart")
-async def analyze_chart(file: UploadFile = File(...)):
+async def analyze_chart(request: Request, file: UploadFile = File(...)):
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "Image file required")
 
@@ -56,13 +57,18 @@ async def analyze_chart(file: UploadFile = File(...)):
 
     result = yolo_service.analyze_chart(image_bytes)
 
-    if llm_service.is_available():
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, remaining = check_and_increment(client_ip)
+
+    if llm_service.is_available() and allowed:
         img_b64 = base64.b64encode(image_bytes).decode()
         media_type = file.content_type or "image/png"
         vision_analysis = await llm_service.analyze_chart_with_vision(img_b64, media_type)
         result["vision_analysis"] = vision_analysis
     else:
         result["vision_analysis"] = ""
+
+    result["remaining_requests"] = remaining
 
     return result
 
@@ -80,7 +86,12 @@ def analyze_sentiment(req: SentimentRequest):
 
 
 @app.post("/api/ask")
-async def ask_question(req: AskRequest):
+async def ask_question(request: Request, req: AskRequest):
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, remaining = check_and_increment(client_ip)
+    if not allowed:
+        raise HTTPException(429, "Daily request limit reached. Try again tomorrow.")
+
     query = req.query.strip()
     question = req.question.strip()
     if not question:
@@ -114,7 +125,7 @@ async def ask_question(req: AskRequest):
             query, question, chart_patterns, news_with_sentiment, news_summary,
             chart_vision_analysis=req.chart_vision_analysis or None,
         )
-        return {"answer": answer, "source": "llm", "news_summary": news_summary}
+        return {"answer": answer, "source": "llm", "news_summary": news_summary, "remaining_requests": remaining}
 
     parts = []
     if news_summary:
