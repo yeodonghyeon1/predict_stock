@@ -158,7 +158,7 @@ export default function Home() {
       {chartResult && (
         <>
           <div className="border-box" style={{ textAlign: "center" }}>
-            <span style={{ fontSize: 12, color: "#888" }}>차트 시그널</span>
+            <span style={{ fontSize: 12, color: "#888" }}>객체인식 패턴 시그널 (YOLOv8)</span>
             <div className={signalClass(chartResult.primary_signal)} style={{ fontSize: 22, margin: "4px 0" }}>
               {chartResult.primary_signal_ko}
             </div>
@@ -174,7 +174,7 @@ export default function Home() {
           {chartResult.detections.length > 0 && (
             <table>
               <thead>
-                <tr><th>패턴</th><th>신뢰도</th><th>시그널</th></tr>
+                <tr><th>객체인식 패턴</th><th>신뢰도</th><th>시그널</th></tr>
               </thead>
               <tbody>
                 {chartResult.detections.map((d, i) => (
