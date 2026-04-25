@@ -111,7 +111,7 @@ export default function Home() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/analyze-chart", { method: "POST", body: formData });
+      const res = await fetch(`/api/analyze-chart?lang=${lang}`, { method: "POST", body: formData });
       if (!res.ok) throw new Error("fail");
       setChartResult(await res.json());
     } catch {
@@ -119,7 +119,7 @@ export default function Home() {
     } finally {
       setChartLoading(false);
     }
-  }, []);
+  }, [lang]);
 
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
@@ -146,6 +146,7 @@ export default function Home() {
       const body: Record<string, unknown> = {
         query: ticker.trim(),
         question: question.trim() || `${ticker.trim()} ${t.defaultQ}`,
+        lang,
       };
       if (chartResult) {
         if (chartResult.detections.length > 0) {

@@ -180,7 +180,7 @@ async def _try_chain(prompt: str, image_b64: str | None = None, media_type: str 
 
 # ---------- Public API (preserved signatures) ----------
 
-VISION_PROMPT = """You are a stock chart analyst. Analyze this chart image in Korean.
+VISION_PROMPT_KO = """You are a stock chart analyst. Analyze this chart image in Korean.
 
 Instructions:
 1. Identify any chart patterns (head & shoulders, double top/bottom, triangle, wedge, flag, channel, support/resistance, trendlines, etc.)
@@ -192,9 +192,27 @@ Instructions:
 
 Be specific about what you see in the chart."""
 
+VISION_PROMPT_EN = """You are a stock chart analyst. Analyze this chart image in English.
 
-async def analyze_chart_with_vision(image_b64: str, media_type: str = "image/png") -> str:
-    return await _try_chain(VISION_PROMPT, image_b64=image_b64, media_type=media_type)
+Instructions:
+1. Identify any chart patterns (head & shoulders, double top/bottom, triangle, wedge, flag, channel, support/resistance, trendlines, etc.)
+2. Note the current trend direction (uptrend, downtrend, sideways)
+3. Identify key support and resistance levels if visible
+4. Give a clear signal: BUY / SELL / HOLD with reasoning
+5. Write 200-400 characters in English
+6. End with: "This analysis is for reference only and is not investment advice."
+
+Be specific about what you see in the chart."""
+
+
+def _vision_prompt(lang: str) -> str:
+    return VISION_PROMPT_EN if lang == "en" else VISION_PROMPT_KO
+
+
+async def analyze_chart_with_vision(
+    image_b64: str, media_type: str = "image/png", lang: str = "ko"
+) -> str:
+    return await _try_chain(_vision_prompt(lang), image_b64=image_b64, media_type=media_type)
 
 
 async def analyze_stock(
@@ -204,6 +222,7 @@ async def analyze_stock(
     news_data: list[dict] | None = None,
     news_summary: dict | None = None,
     chart_vision_analysis: str | None = None,
+    lang: str = "ko",
 ) -> str:
     context_parts: list[str] = []
 
@@ -222,7 +241,7 @@ async def analyze_stock(
         context_parts.append(f"\n## Recent News ({len(news_data)} articles)")
         for i, article in enumerate(news_data, 1):
             sentiment = article.get("sentiment", {})
-            signal = sentiment.get("signal_ko", "?")
+            signal = sentiment.get("signal_ko" if lang == "ko" else "signal", "?")
             title = article.get("title_original", article.get("title_en", ""))
             source = article.get("source", "")
             link = article.get("link", "")
@@ -230,18 +249,38 @@ async def analyze_stock(
 
     if news_summary:
         s = news_summary
+        overall = s.get("signal_ko" if lang == "ko" else "signal_ko", "N/A")
         context_parts.append(
             f"\n## News Summary"
             f"\nTotal: {s.get('total_articles', 0)} articles"
             f"\nPositive: {s.get('positive_count', 0)}, "
             f"Neutral: {s.get('neutral_count', 0)}, "
             f"Negative: {s.get('negative_count', 0)}"
-            f"\nOverall signal: {s.get('signal_ko', 'N/A')}"
+            f"\nOverall signal: {overall}"
         )
 
     context = "\n".join(context_parts) if context_parts else "No analysis data available."
 
-    prompt = f"""You are a stock analysis AI. Analyze the data below and answer the user's question in Korean.
+    if lang == "en":
+        prompt = f"""You are a stock analysis AI. Analyze the data below and answer the user's question in English.
+
+Ticker: {query or 'Not specified'}
+
+{context}
+
+User question: {question}
+
+Instructions:
+1. EVIDENCE FIRST: Cite specific news headlines as evidence. Include the article link in parentheses when referencing news.
+2. CLEAR DIRECTION: State a clear recommendation - buy, sell, or hold - with confidence level (strong/moderate/weak). Do not be vague.
+3. CHART + NEWS + OBJECT DETECTION COMBINED: Synthesize all available data - AI vision analysis, object detection patterns, and news. If signals conflict, explain which is stronger and why. Always mention object detection results if available.
+4. RISKS: Briefly mention 1-2 key risks.
+5. NEWS LINKS: At the end, list 2-3 most relevant article links under "References:" section.
+6. End with: "This analysis is for reference only and is not investment advice."
+
+Write 400-800 characters in English. Be specific and direct."""
+    else:
+        prompt = f"""You are a stock analysis AI. Analyze the data below and answer the user's question in Korean.
 
 Ticker: {query or 'Not specified'}
 

@@ -20,6 +20,7 @@ class AskRequest(BaseModel):
     question: str
     chart_patterns: list[ChartPattern] | None = None
     chart_vision_analysis: str = ""
+    lang: str = "ko"
 
 
 class SentimentResult(BaseModel):

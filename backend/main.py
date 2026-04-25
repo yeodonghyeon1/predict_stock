@@ -47,7 +47,7 @@ def health():
 
 
 @app.post("/api/analyze-chart")
-async def analyze_chart(request: Request, file: UploadFile = File(...)):
+async def analyze_chart(request: Request, file: UploadFile = File(...), lang: str = "ko"):
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "Image file required")
 
@@ -63,7 +63,7 @@ async def analyze_chart(request: Request, file: UploadFile = File(...)):
     if llm_service.is_available() and allowed:
         img_b64 = base64.b64encode(image_bytes).decode()
         media_type = file.content_type or "image/png"
-        vision_analysis = await llm_service.analyze_chart_with_vision(img_b64, media_type)
+        vision_analysis = await llm_service.analyze_chart_with_vision(img_b64, media_type, lang=lang)
         result["vision_analysis"] = vision_analysis
     else:
         result["vision_analysis"] = ""
@@ -124,6 +124,7 @@ async def ask_question(request: Request, req: AskRequest):
         answer = await llm_service.analyze_stock(
             query, question, chart_patterns, news_with_sentiment, news_summary,
             chart_vision_analysis=req.chart_vision_analysis or None,
+            lang=req.lang,
         )
         return {"answer": answer, "source": "llm", "news_summary": news_summary, "remaining_requests": remaining}
 
