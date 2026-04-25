@@ -115,6 +115,9 @@ async def _google_chat(prompt: str, image_b64: str | None, media_type: str) -> s
                 "generationConfig": {
                     "temperature": 0.3,
                     "maxOutputTokens": MAX_TOKENS,
+                    # Gemini 2.5 Flash burns budget on hidden thinking tokens
+                    # by default, which can starve the visible response.
+                    "thinkingConfig": {"thinkingBudget": 0},
                 },
             },
         )
