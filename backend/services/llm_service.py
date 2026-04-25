@@ -31,6 +31,17 @@ PROVIDER_ORDER = [
     if p.strip()
 ]
 
+# Vision quality varies more by provider than text. Default to Google first
+# because Gemini follows non-English output instructions better than Llama 4
+# Scout via Groq.
+VISION_PROVIDER_ORDER = [
+    p.strip().lower()
+    for p in os.environ.get(
+        "LLM_VISION_PROVIDER_ORDER", "google,claude,groq"
+    ).split(",")
+    if p.strip()
+]
+
 REQUEST_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "60"))
 MAX_TOKENS = int(os.environ.get("LLM_MAX_TOKENS", "1024"))
 
@@ -164,7 +175,8 @@ _CALLERS = {"groq": _groq_chat, "google": _google_chat, "claude": _claude_chat}
 
 
 async def _try_chain(prompt: str, image_b64: str | None = None, media_type: str = "image/png") -> str:
-    for provider in PROVIDER_ORDER:
+    order = VISION_PROVIDER_ORDER if image_b64 else PROVIDER_ORDER
+    for provider in order:
         if not _provider_available(provider):
             continue
         try:
@@ -173,33 +185,37 @@ async def _try_chain(prompt: str, image_b64: str | None = None, media_type: str 
             log.warning("%s exception: %s", provider, e)
             answer = ""
         if answer:
-            log.info("llm provider used: %s", provider)
+            log.info("llm provider used: %s (vision=%s)", provider, bool(image_b64))
             return answer
     return ""
 
 
 # ---------- Public API (preserved signatures) ----------
 
-VISION_PROMPT_KO = """You are a stock chart analyst. Analyze this chart image in Korean.
+VISION_PROMPT_KO = """OUTPUT LANGUAGE: KOREAN ONLY. 한국어로만 답변하세요. Do NOT write any English in the response.
+
+You are a stock chart analyst. Analyze this chart image.
 
 Instructions:
 1. Identify any chart patterns (head & shoulders, double top/bottom, triangle, wedge, flag, channel, support/resistance, trendlines, etc.)
 2. Note the current trend direction (uptrend, downtrend, sideways)
 3. Identify key support and resistance levels if visible
 4. Give a clear signal: BUY / SELL / HOLD with reasoning
-5. Write 200-400 characters in Korean
+5. Write 200-400 characters in Korean. Every sentence must be in Korean.
 6. End with: "이 분석은 참고용이며 투자 조언이 아닙니다."
 
-Be specific about what you see in the chart."""
+Be specific about what you see in the chart. Respond in Korean only."""
 
-VISION_PROMPT_EN = """You are a stock chart analyst. Analyze this chart image in English.
+VISION_PROMPT_EN = """OUTPUT LANGUAGE: ENGLISH ONLY.
+
+You are a stock chart analyst. Analyze this chart image.
 
 Instructions:
 1. Identify any chart patterns (head & shoulders, double top/bottom, triangle, wedge, flag, channel, support/resistance, trendlines, etc.)
 2. Note the current trend direction (uptrend, downtrend, sideways)
 3. Identify key support and resistance levels if visible
 4. Give a clear signal: BUY / SELL / HOLD with reasoning
-5. Write 200-400 characters in English
+5. Write 200-400 characters in English.
 6. End with: "This analysis is for reference only and is not investment advice."
 
 Be specific about what you see in the chart."""
