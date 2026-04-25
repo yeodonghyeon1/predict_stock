@@ -1,21 +1,186 @@
+"""LLM analysis with provider fallback chain.
+
+Default order: Groq → Google → Claude. The first provider whose API key is
+configured and that returns a non-empty response wins. Any 4xx/5xx/timeout
+error or empty body causes the chain to fall through to the next provider.
+
+Configure the order via ``LLM_PROVIDER_ORDER`` (comma-separated).
+"""
+
 import os
-import base64
+import logging
 import httpx
 
-CLAUDE_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL = "claude-haiku-4-5-20251001"
-CLAUDE_URL = "https://api.anthropic.com/v1/messages"
+log = logging.getLogger(__name__)
+
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_TEXT_MODEL = os.environ.get("GROQ_TEXT_MODEL", "llama-3.3-70b-versatile")
+GROQ_VISION_MODEL = os.environ.get(
+    "GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"
+)
+
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+GOOGLE_MODEL = os.environ.get("GOOGLE_MODEL", "gemini-2.5-flash")
+
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+
+PROVIDER_ORDER = [
+    p.strip().lower()
+    for p in os.environ.get("LLM_PROVIDER_ORDER", "groq,google,claude").split(",")
+    if p.strip()
+]
+
+REQUEST_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "60"))
+MAX_TOKENS = int(os.environ.get("LLM_MAX_TOKENS", "1024"))
+
+
+def _provider_available(name: str) -> bool:
+    return {
+        "groq": bool(GROQ_API_KEY),
+        "google": bool(GOOGLE_API_KEY),
+        "claude": bool(ANTHROPIC_API_KEY),
+    }.get(name, False)
 
 
 def is_available() -> bool:
-    return bool(CLAUDE_API_KEY)
+    return any(_provider_available(p) for p in PROVIDER_ORDER)
 
 
-async def analyze_chart_with_vision(image_b64: str, media_type: str = "image/png") -> str:
-    if not CLAUDE_API_KEY:
-        return ""
+# ---------- Groq (OpenAI-compatible) ----------
 
-    prompt = """You are a stock chart analyst. Analyze this chart image in Korean.
+async def _groq_chat(prompt: str, image_b64: str | None, media_type: str) -> str:
+    if image_b64:
+        model = GROQ_VISION_MODEL
+        content: list[dict] = [
+            {"type": "text", "text": prompt},
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{media_type};base64,{image_b64}"},
+            },
+        ]
+    else:
+        model = GROQ_TEXT_MODEL
+        content = prompt  # OpenAI accepts a plain string for text-only
+
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+        resp = await client.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": content}],
+                "max_tokens": MAX_TOKENS,
+                "temperature": 0.3,
+            },
+        )
+        if resp.status_code != 200:
+            log.warning("groq returned %s: %s", resp.status_code, resp.text[:300])
+            return ""
+        data = resp.json()
+        return (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+
+
+# ---------- Google Gemini ----------
+
+async def _google_chat(prompt: str, image_b64: str | None, media_type: str) -> str:
+    parts: list[dict] = [{"text": prompt}]
+    if image_b64:
+        parts.append({"inlineData": {"mimeType": media_type, "data": image_b64}})
+
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GOOGLE_MODEL}:generateContent?key={GOOGLE_API_KEY}"
+    )
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+        resp = await client.post(
+            url,
+            headers={"Content-Type": "application/json"},
+            json={
+                "contents": [{"role": "user", "parts": parts}],
+                "generationConfig": {
+                    "temperature": 0.3,
+                    "maxOutputTokens": MAX_TOKENS,
+                },
+            },
+        )
+        if resp.status_code != 200:
+            log.warning("google returned %s: %s", resp.status_code, resp.text[:300])
+            return ""
+        data = resp.json()
+        candidates = data.get("candidates") or []
+        if not candidates:
+            return ""
+        parts_out = (candidates[0].get("content") or {}).get("parts") or []
+        return "".join(p.get("text", "") for p in parts_out).strip()
+
+
+# ---------- Anthropic Claude ----------
+
+async def _claude_chat(prompt: str, image_b64: str | None, media_type: str) -> str:
+    if image_b64:
+        content = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": image_b64,
+                },
+            },
+            {"type": "text", "text": prompt},
+        ]
+    else:
+        content = prompt
+
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": ANTHROPIC_MODEL,
+                "max_tokens": MAX_TOKENS,
+                "messages": [{"role": "user", "content": content}],
+            },
+        )
+        if resp.status_code != 200:
+            log.warning("claude returned %s: %s", resp.status_code, resp.text[:300])
+            return ""
+        data = resp.json()
+        blocks = data.get("content") or []
+        if not blocks:
+            return ""
+        return blocks[0].get("text", "").strip()
+
+
+_CALLERS = {"groq": _groq_chat, "google": _google_chat, "claude": _claude_chat}
+
+
+async def _try_chain(prompt: str, image_b64: str | None = None, media_type: str = "image/png") -> str:
+    for provider in PROVIDER_ORDER:
+        if not _provider_available(provider):
+            continue
+        try:
+            answer = await _CALLERS[provider](prompt, image_b64, media_type)
+        except Exception as e:
+            log.warning("%s exception: %s", provider, e)
+            answer = ""
+        if answer:
+            log.info("llm provider used: %s", provider)
+            return answer
+    return ""
+
+
+# ---------- Public API (preserved signatures) ----------
+
+VISION_PROMPT = """You are a stock chart analyst. Analyze this chart image in Korean.
 
 Instructions:
 1. Identify any chart patterns (head & shoulders, double top/bottom, triangle, wedge, flag, channel, support/resistance, trendlines, etc.)
@@ -27,40 +192,9 @@ Instructions:
 
 Be specific about what you see in the chart."""
 
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                CLAUDE_URL,
-                headers={
-                    "x-api-key": CLAUDE_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": CLAUDE_MODEL,
-                    "max_tokens": 1024,
-                    "messages": [{
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": media_type,
-                                    "data": image_b64,
-                                },
-                            },
-                            {"type": "text", "text": prompt},
-                        ],
-                    }],
-                },
-            )
-            if resp.status_code != 200:
-                return ""
-            data = resp.json()
-            return data["content"][0]["text"]
-    except Exception:
-        return ""
+
+async def analyze_chart_with_vision(image_b64: str, media_type: str = "image/png") -> str:
+    return await _try_chain(VISION_PROMPT, image_b64=image_b64, media_type=media_type)
 
 
 async def analyze_stock(
@@ -71,10 +205,7 @@ async def analyze_stock(
     news_summary: dict | None = None,
     chart_vision_analysis: str | None = None,
 ) -> str:
-    if not CLAUDE_API_KEY:
-        return ""
-
-    context_parts = []
+    context_parts: list[str] = []
 
     if chart_vision_analysis:
         context_parts.append(f"## Chart Analysis (AI Vision)\n{chart_vision_analysis}")
@@ -128,24 +259,4 @@ Instructions:
 
 Write 400-800 characters in Korean. Be specific and direct."""
 
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                CLAUDE_URL,
-                headers={
-                    "x-api-key": CLAUDE_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": CLAUDE_MODEL,
-                    "max_tokens": 1024,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-            )
-            if resp.status_code != 200:
-                return ""
-            data = resp.json()
-            return data["content"][0]["text"]
-    except Exception:
-        return ""
+    return await _try_chain(prompt)
